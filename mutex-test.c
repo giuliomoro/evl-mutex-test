@@ -3,19 +3,45 @@
 #include <unistd.h>
 #ifndef USE_PTHREAD
 #include <evl/evl.h>
-#endif
+#endif // USE_PTHREAD
 #include <pthread.h>
 #include <string.h>
 #include <error.h>
 #include <stdlib.h>
 #include <sys/sysinfo.h>
+#include <stdio.h>
+#include <errno.h>
+#include <signal.h>
 
 #ifdef __EVL__
 typedef struct evl_mutex mutex_t;
 #else
-typedef pthread_mutex_t;
-#endif 
-struct evl_mutex mutex;
+typedef pthread_mutex_t mutex_t;
+int nop(){ return 0; }
+#define evl_init(...) nop()
+#define evl_attach_thread(...) nop()
+#define evl_attach_self(...) nop()
+#define evl_printf(...) printf(__VA_ARGS__)
+#define evl_create_mutex(mutex, ...) \
+	-pthread_mutex_init(mutex, NULL);
+
+int evl_lock_mutex(mutex_t* mutex)
+{
+	return -pthread_mutex_lock(mutex);
+}
+int evl_trylock_mutex(mutex_t* mutex)
+{
+	return -pthread_mutex_trylock(mutex);
+}
+int evl_unlock_mutex(mutex_t* mutex)
+{
+	return -pthread_mutex_unlock(mutex);
+}
+
+typedef pthread_mutex_t mutex_t;
+#endif
+
+mutex_t mutex;
 volatile int shouldStop;
 pthread_t* threads;
 
