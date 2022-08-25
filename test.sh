@@ -9,9 +9,16 @@ for (( t = 0; t <= $maxCpu; t++ )); do
 	for mainPrio in 0 90 99; do
 		args="$niter $t $mainPrio $flags"
 		printf "mutex-test $args : "
-		./mutex-test $args 2>&1 | cat > /dev/null# | cat > log-$t-$mainPrio #cat > /dev/null
-		ERR=$?
-		[ 0 -eq $ERR ] && echo Success || echo Failed $(echo -e "obase=2\n$ERR" | bc)
+		export args
+		TIME=$(
+			{ time bash -c 'set -o pipefail;
+				./mutex-test $args 2>&1 | cat > /dev/null;
+				ERR=$?
+				[ 0 -eq $ERR ] && printf Success || printf "Failed $(echo -e "obase=2\n$ERR" | bc)"'
+			} 2>&1
+		)
+		printf " "
+		echo $TIME | head -n 1
 		sleep 0.4
 	done
 done
