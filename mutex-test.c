@@ -205,6 +205,17 @@ int main(int argc, char** argv)
 		fprintf(stderr, "evl_create_mutex: %d %s\n", ret, strerror(-ret));
 		return ERR_OTHER;
 	}
+	// set scheduling policy before attaching to the EVL core so that they
+	// get properly inherited
+	int policy = mainPrio ? SCHED_FIFO : SCHED_OTHER;
+	struct sched_param param;
+	param.sched_priority = mainPrio;
+	ret = pthread_setschedparam(pthread_self(), policy, &param);
+	if(ret)
+	{
+		fprintf(stderr, "pthread_setschedparam: %d %s\n", ret, strerror(ret));
+		return ERR_OTHER;
+	}
 	ret = evl_attach_self("main");
 	if(ret < 0)
 	{
@@ -222,15 +233,6 @@ int main(int argc, char** argv)
 	if(ret)
 	{
 		fprintf(stderr, "pthread_setaffinity_np: %d %s\n", ret, strerror(ret));
-		return ERR_OTHER;
-	}
-	int policy = mainPrio ? SCHED_FIFO : SCHED_OTHER;
-	struct sched_param param;
-	param.sched_priority = mainPrio;
-	ret = pthread_setschedparam(pthread_self(), policy, &param);
-	if(ret)
-	{
-		fprintf(stderr, "pthread_setschedparam: %d %s\n", ret, strerror(ret));
 		return ERR_OTHER;
 	}
 	ret = evl_lock_mutex(&mutex);
