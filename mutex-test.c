@@ -25,6 +25,7 @@
 #define PRINT_ALL 4
 int printFlags = PRINT_ALL;
 const int throttledPrints = 500;
+int useMutex = 1;
 
 #ifdef __EVL__
 typedef struct evl_mutex mutex_t;
@@ -95,13 +96,17 @@ void* threadFunc(void* arg)
 	}
 	long int err = 0;
 	unsigned int c = 0;
+#ifdef __EVL__
+	evl_switch_oob();
+#endif // __EVL__
 	while(!shouldStop)
 	{
 		int shouldPrint = (PRINT_ALL == printFlags) || ((PRINT_THROTTLED == printFlags) && (0 == (n % throttledPrints)));
 		int shouldPrintError = (PRINT_NONE != printFlags);
 		c++;
 		shouldPrint && evl_printf("thread %d waiting\n", n);
-		int ret = evl_lock_mutex(&mutex);
+		int ret = 0;
+		useMutex && (ret = evl_lock_mutex(&mutex));
 		if(ret) {
 			shouldPrintError && evl_printf("thread %d ERROR lock() %d %s\n", n, ret, strerror(-ret));
 			err |= ERR_LOCK;
@@ -109,7 +114,7 @@ void* threadFunc(void* arg)
 			shouldPrint && evl_printf("thread %d locked\n", n);
 			for(volatile unsigned int n = 0; n < 100000; ++n) // do some work
 				;
-			ret = evl_unlock_mutex(&mutex);
+			useMutex && (ret = evl_unlock_mutex(&mutex));
 			if(ret) {
 				shouldPrintError && evl_printf("thread %d ERROR unlock() %d %s\n", n, ret, strerror(-ret));
 				err |= ERR_UNLOCK;
@@ -144,6 +149,7 @@ int main(int argc, char** argv)
 				" e: print errors\n"
 				" t: print every %d iterations or errors\n"
 				" a: print all (default)\n"
+				" m: do not use mutex\n"
 				, argv[0], throttledPrints);
 		return ERR_OTHER;
 	}
@@ -182,6 +188,9 @@ int main(int argc, char** argv)
 				break;
 			case 'a':
 				printFlags = PRINT_ALL;
+				break;
+			case 'm':
+				useMutex = 0;
 				break;
 			}
 		}
@@ -274,16 +283,21 @@ int main(int argc, char** argv)
 	shouldPrint && evl_printf("main unlocked before loop\n");
 
 	long int err = 0;
+#ifdef __EVL__
+	// necessary for when useMutex is false in order to force switching to OOB
+	evl_switch_oob();
+#endif // __EVL__
 	for(unsigned int n = 0; n < numIter && !shouldStop; ++n)
 	{
 		int shouldPrint = (PRINT_ALL == printFlags) || ((PRINT_THROTTLED == printFlags) && (0 == (n % throttledPrints)));
 		int shouldPrintError = (PRINT_NONE != printFlags);
 		shouldPrint && evl_printf("main try_lock %d\n", n);
-		int ret = evl_trylock_mutex(&mutex);
+		int ret = 0;
+		useMutex && (ret = evl_trylock_mutex(&mutex));
 		if(0 == ret)
 		{
 			shouldPrint && evl_printf("main locked\n");
-			ret = evl_unlock_mutex(&mutex);
+			useMutex && (ret = evl_unlock_mutex(&mutex));
 			if(ret) {
 				shouldPrintError && evl_printf("main ERROR unlock: %d %s\n", ret, strerror(-ret));
 				err |= ERR_UNLOCK;
